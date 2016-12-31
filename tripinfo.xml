@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on Sat 31 Dec 2016 03:36:34 PM +03 by SUMO gui Version 0.25.0
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/sumo-gui.exeConfiguration.xsd">
+
+    <input>
+        <net-file value="/home/emrah/Desktop/Sumo/net.net.xml"/>
+        <route-files value="/home/emrah/Desktop/Sumo/routes.rou.xml"/>
+    </input>
+
+    <output>
+        <fcd-output value="/home/emrah/Desktop/Sumo/trace.fcd.xml"/>
+        <tripinfo-output value="tripinfo.xml"/>
+        <save-state.prefix value="/home/emrah/Desktop/Sumo/state"/>
+    </output>
+
+    <time>
+        <begin value="0"/>
+        <end value="240"/>
+    </time>
+
+    <emissions>
+        <phemlight-path value="/home/emrah/Desktop/Sumo/./PHEMlight/"/>
+    </emissions>
+
+    <traci_server>
+        <remote-port value="8873"/>
+    </traci_server>
+
+</configuration>

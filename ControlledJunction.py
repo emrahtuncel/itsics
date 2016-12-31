@@ -1,9 +1,4 @@
 class ControlledJunction:
-    
-    x = 0
-    y = 0
-    z = 0
-    junctionId = ""
 
     def __init__(self, junctionId):
         self.junctionId = junctionId
@@ -14,4 +9,5 @@ class ControlledJunction:
         coordinates = junctionId.split("/")
         self.x = int(coordinates[0])
         self.y = int(coordinates[1])
+        self.totalCars = 0
     

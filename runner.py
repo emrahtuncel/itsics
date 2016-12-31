@@ -24,6 +24,7 @@ import os
 import sys
 import optparse
 import subprocess
+import random
 
 # we need to import python modules from the $SUMO_HOME/tools directory
 try:
@@ -42,6 +43,7 @@ PORT = 8873
 
 from Lane import Lane
 from ControlledJunction import ControlledJunction
+from TlGroup import TlGroup
 
 properties = {}
 
@@ -62,35 +64,39 @@ def initializeNetworkInfo(junctionInfo, laneInfo):
             laneInfo[cur] = newLane
         
     for key,value in junctionInfo.iteritems():
-        value.laneGroups["X_" + str(value.x)] = []
-        value.laneGroups["Y_" + str(value.y)] = []
+        value.laneGroups["X_" + str(value.x)] = TlGroup("X_" + str(value.x))
+        value.laneGroups["Y_" + str(value.y)] = TlGroup("Y_" + str(value.y))
         if value.x != 0:
             value.incomingLanes.append(laneInfo[str(value.x-1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x-1)+"/"+str(value.y)+"_0"])
             value.neighbourJunctions.append(junctionInfo[str(value.x-1)+"/"+str(value.y)])
-            value.laneGroups["Y_" + str(value.y)].append(laneInfo[str(value.x-1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
+            value.laneGroups["Y_" + str(value.y)].laneList.append(laneInfo[str(value.x-1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.x != (xNumber-1)):
             value.incomingLanes.append(laneInfo[str(value.x+1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x+1)+"/"+str(value.y)+"_0"])
             value.neighbourJunctions.append(junctionInfo[str(value.x+1)+"/"+str(value.y)])
-            value.laneGroups["Y_" + str(value.y)].append(laneInfo[str(value.x+1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
+            value.laneGroups["Y_" + str(value.y)].laneList.append(laneInfo[str(value.x+1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.y != 0):
             value.incomingLanes.append(laneInfo[str(value.x)+"/"+str(value.y-1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y-1)+"_0"])
             value.neighbourJunctions.append(junctionInfo[str(value.x)+"/"+str(value.y-1)])
-            value.laneGroups["X_" + str(value.x)].append(laneInfo[str(value.x)+"/"+str(value.y-1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
+            value.laneGroups["X_" + str(value.x)].laneList.append(laneInfo[str(value.x)+"/"+str(value.y-1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.y != (yNumber-1)):
             value.incomingLanes.append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y+1)+"_0"])
             value.neighbourJunctions.append(junctionInfo[str(value.x)+"/"+str(value.y+1)])
-            value.laneGroups["X_" + str(value.x)].append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
+            value.laneGroups["X_" + str(value.x)].laneList.append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
+        
+        if value.x == 1 and value.y == 1:
+            curTlLogic = traci.trafficlights.getCompleteRedYellowGreenDefinition(key)
             
     for key,value in laneInfo.iteritems():
         value.startPoint = junctionInfo[str(value.startX)+"/"+str(value.startY)]
         value.endPoint = junctionInfo[str(value.endX)+"/"+str(value.endY)]
+        
         
         
 def readPropertiesFile(filepath):
@@ -102,6 +108,57 @@ def readPropertiesFile(filepath):
                 key = key_value[0].strip()
                 value = key_value[1].strip()
                 properties[key] = value
+                
+def updateTlLogic(junctionInfo, laneInfo):
+    
+    xNumber = int(properties["xNumber"])
+    yNumber = int(properties["yNumber"])
+    cycleLength = int(properties["cycleLength"])
+    minTime = int(properties["minTime"])
+        
+    for key,value in junctionInfo.iteritems():
+        value.totalCars = 0
+        if(value.x == 0 or value.x == (xNumber-1) or value.y == 0 or value.y == (yNumber-1)):
+            continue
+        
+        for groupKey, groupValue in value.laneGroups.iteritems():
+            groupValue.averageCars = 0
+            for curLane in groupValue.laneList:
+                groupValue.averageCars = groupValue.averageCars + curLane.getAverageWaitingTime()
+            groupValue.averageCars = groupValue.averageCars / 2
+            value.totalCars = value.totalCars + groupValue.averageCars
+            
+    for key,value in junctionInfo.iteritems():
+        totalLen = 0
+        for groupKey, groupValue in value.laneGroups.iteritems():
+            proportionGroup = groupValue.averageCars / junctionInfo.totalCars
+            groupValue.time = round(cycleLength*proportionGroup)
+            if(groupValue.time < minTime):
+                groupValue.time = minTime
+            totalLen = totalLen + groupValue.time
+            
+        while totalLen != cycleLength:
+            curGroup = random.choice(junctionInfo.laneGroups.values())
+            if totalLen < cycleLength:
+                curGroup.time = curGroup.time + 1
+                totalLen = totalLen + 1
+            else:            
+                curGroup.time = curGroup.time - 1
+                totalLen = totalLen - 1
+                
+        curTlLogic = traci.trafficlights.getCompleteRedYellowGreenDefinition(key)[0]
+        
+        for groupKey, groupValue in value.laneGroups.iteritems():
+            if groupKey.startswith("X"):
+                curTlLogic._phases[0]._duration = groupValue.time
+                curTlLogic._phases[0]._duration1 = groupValue.time
+                curTlLogic._phases[0]._duration2 = groupValue.time
+            elif groupKey.startswith("Y"):
+                curTlLogic._phases[2]._duration = groupValue.time
+                curTlLogic._phases[2]._duration1 = groupValue.time
+                curTlLogic._phases[2]._duration2 = groupValue.time
+        
+        traci.trafficlights.setCompleteRedYellowGreenDefinition(key, curTlLogic)                 
 
 def run():
     """execute the TraCI control loop"""
@@ -124,7 +181,7 @@ def run():
                 value.addNewObservation(traci.lane.getWaitingTime(key), observationWindow)
     
         if (step != 0 and step%updateInterval == 0):
-            continue    #TODO
+            updateTlLogic(junctionInfo, laneInfo)
         
         step += 1
     traci.close()
