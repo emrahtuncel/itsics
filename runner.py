@@ -24,7 +24,6 @@ import os
 import sys
 import optparse
 import subprocess
-import argparse
 
 # we need to import python modules from the $SUMO_HOME/tools directory
 try:
@@ -63,25 +62,36 @@ def initializeNetworkInfo(junctionInfo, laneInfo):
             laneInfo[cur] = newLane
         
     for key,value in junctionInfo.iteritems():
+        value.laneGroups["X_" + str(value.x)] = []
+        value.laneGroups["Y_" + str(value.y)] = []
         if value.x != 0:
             value.incomingLanes.append(laneInfo[str(value.x-1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x-1)+"/"+str(value.y)+"_0"])
+            value.neighbourJunctions.append(junctionInfo[str(value.x-1)+"/"+str(value.y)])
+            value.laneGroups["Y_" + str(value.y)].append(laneInfo[str(value.x-1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.x != (xNumber-1)):
             value.incomingLanes.append(laneInfo[str(value.x+1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x+1)+"/"+str(value.y)+"_0"])
+            value.neighbourJunctions.append(junctionInfo[str(value.x+1)+"/"+str(value.y)])
+            value.laneGroups["Y_" + str(value.y)].append(laneInfo[str(value.x+1)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.y != 0):
             value.incomingLanes.append(laneInfo[str(value.x)+"/"+str(value.y-1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y-1)+"_0"])
+            value.neighbourJunctions.append(junctionInfo[str(value.x)+"/"+str(value.y-1)])
+            value.laneGroups["X_" + str(value.x)].append(laneInfo[str(value.x)+"/"+str(value.y-1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
         if(value.y != (yNumber-1)):
             value.incomingLanes.append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y+1)+"_0"])
+            value.neighbourJunctions.append(junctionInfo[str(value.x)+"/"+str(value.y+1)])
+            value.laneGroups["X_" + str(value.x)].append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
             
     for key,value in laneInfo.iteritems():
         value.startPoint = junctionInfo[str(value.startX)+"/"+str(value.startY)]
         value.endPoint = junctionInfo[str(value.endX)+"/"+str(value.endY)]
+        
         
 def readPropertiesFile(filepath):
     with open(filepath, "rt") as f:
@@ -105,7 +115,7 @@ def run():
     junctionInfo = {}
     laneInfo = {}
     initializeNetworkInfo(junctionInfo, laneInfo)
-    
+
     while traci.simulation.getMinExpectedNumber() > 0:
         traci.simulationStep()
         

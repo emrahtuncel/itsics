@@ -7,10 +7,10 @@ class Lane:
     endY = 0
     startPoint = ""
     endPoint = ""
-    waitingTime = []
 
     def __init__(self, laneId):
         self.laneId = laneId
+        self.waitingTime = []
         firstList = laneId.split("/")
         self.startX = int(firstList[0])
         secondList = firstList[1].split("to")
