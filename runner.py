@@ -20,6 +20,7 @@ the Free Software Foundation; either version 3 of the License, or
 (at your option) any later version.
 """
 
+from __future__ import division
 import os
 import sys
 import optparse
@@ -46,6 +47,8 @@ from ControlledJunction import ControlledJunction
 from TlGroup import TlGroup
 
 properties = {}
+
+file = open("output.txt", "w")
 
 def initializeNetworkInfo(junctionInfo, laneInfo):
     
@@ -89,9 +92,6 @@ def initializeNetworkInfo(junctionInfo, laneInfo):
             value.outgoingLanes.append(laneInfo[str(value.x)+"/"+str(value.y)+"to"+str(value.x)+"/"+str(value.y+1)+"_0"])
             value.neighbourJunctions.append(junctionInfo[str(value.x)+"/"+str(value.y+1)])
             value.laneGroups["X_" + str(value.x)].laneList.append(laneInfo[str(value.x)+"/"+str(value.y+1)+"to"+str(value.x)+"/"+str(value.y)+"_0"])
-        
-        if value.x == 1 and value.y == 1:
-            curTlLogic = traci.trafficlights.getCompleteRedYellowGreenDefinition(key)
             
     for key,value in laneInfo.iteritems():
         value.startPoint = junctionInfo[str(value.startX)+"/"+str(value.startY)]
@@ -125,30 +125,51 @@ def updateTlLogic(junctionInfo, laneInfo):
             groupValue.averageCars = 0
             for curLane in groupValue.laneList:
                 groupValue.averageCars = groupValue.averageCars + curLane.getAverageWaitingTime()
-            groupValue.averageCars = groupValue.averageCars / 2
+            
+            count = 2
+            for cur in value.neighbourJunctions:
+                for nGroupKey, nGroupValue in cur.laneGroups.iteritems():
+                    if nGroupKey == groupKey:
+                        for nCur in nGroupValue.laneList:
+                            if value.x == nCur.endX and value.y == nCur.endY:
+                                continue
+                            else:
+                                groupValue.averageCars = groupValue.averageCars + nCur.getAverageWaitingTime() / 2
+                                count = count + 1
+            groupValue.averageCars = groupValue.averageCars / count
             value.totalCars = value.totalCars + groupValue.averageCars
             
     for key,value in junctionInfo.iteritems():
+        
+        if(value.x == 0 or value.x == (xNumber-1) or value.y == 0 or value.y == (yNumber-1)):
+            continue
+        
         totalLen = 0
         for groupKey, groupValue in value.laneGroups.iteritems():
-            proportionGroup = groupValue.averageCars / junctionInfo.totalCars
+            if value.totalCars == 0:
+                proportionGroup = 0
+            else:
+                proportionGroup = groupValue.averageCars / value.totalCars
             groupValue.time = round(cycleLength*proportionGroup)
             if(groupValue.time < minTime):
                 groupValue.time = minTime
             totalLen = totalLen + groupValue.time
             
         while totalLen != cycleLength:
-            curGroup = random.choice(junctionInfo.laneGroups.values())
+            curGroup = random.choice(value.laneGroups.values())
             if totalLen < cycleLength:
                 curGroup.time = curGroup.time + 1
                 totalLen = totalLen + 1
-            else:            
+            else:
+                if curGroup.time == minTime:
+                    continue           
                 curGroup.time = curGroup.time - 1
                 totalLen = totalLen - 1
                 
         curTlLogic = traci.trafficlights.getCompleteRedYellowGreenDefinition(key)[0]
         
         for groupKey, groupValue in value.laneGroups.iteritems():
+            groupValue.time = groupValue.time * 1000
             if groupKey.startswith("X"):
                 curTlLogic._phases[0]._duration = groupValue.time
                 curTlLogic._phases[0]._duration1 = groupValue.time
@@ -157,8 +178,10 @@ def updateTlLogic(junctionInfo, laneInfo):
                 curTlLogic._phases[2]._duration = groupValue.time
                 curTlLogic._phases[2]._duration1 = groupValue.time
                 curTlLogic._phases[2]._duration2 = groupValue.time
+            file.write(key + " - " + groupKey + " - " + str(groupValue.time) + " - " + str(groupValue.averageCars) +"\n")
         
-        traci.trafficlights.setCompleteRedYellowGreenDefinition(key, curTlLogic)                 
+        traci.trafficlights.setCompleteRedYellowGreenDefinition(key, curTlLogic)
+                      
 
 def run():
     """execute the TraCI control loop"""
@@ -168,23 +191,32 @@ def run():
     observationInterval = int(properties["observationInterval"])
     updateInterval = int(properties["updateInterval"])
     observationWindow = int(properties["observationWindow"])
+    simulationTime = int(properties["simulationTime"])
 
     junctionInfo = {}
     laneInfo = {}
     initializeNetworkInfo(junctionInfo, laneInfo)
+    waitingTime = 0
 
-    while traci.simulation.getMinExpectedNumber() > 0:
+    while simulationTime > step:
         traci.simulationStep()
+        vehicleIdList = traci.vehicle.getIDList()
+        for cur in vehicleIdList:
+            if traci.vehicle.getWaitingTime(cur) > 0:
+                waitingTime += 1
         
         if (step != 0 and step%observationInterval == 0):
             for key,value in laneInfo.iteritems():
-                value.addNewObservation(traci.lane.getWaitingTime(key), observationWindow)
+                value.addNewObservation(traci.lane.getLastStepVehicleNumber(key), observationWindow)
     
         if (step != 0 and step%updateInterval == 0):
             updateTlLogic(junctionInfo, laneInfo)
         
         step += 1
     traci.close()
+    
+    file.write("TotalWaitingTime: " + str(waitingTime))
+    file.close()
     sys.stdout.flush()
 
 

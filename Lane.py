@@ -23,7 +23,7 @@ class Lane:
     def getAverageWaitingTime(self):
         total = 0
         
-        if len(self.waitingTime == 0):
+        if len(self.waitingTime) == 0:
             return 0
         
         for curValue in self.waitingTime:
