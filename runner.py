@@ -144,12 +144,12 @@ def updateTlLogic(junctionInfo, laneInfo):
         if(value.x == 0 or value.x == (xNumber-1) or value.y == 0 or value.y == (yNumber-1)):
             continue
         
+        if value.totalCars == 0:
+            continue
+        
         totalLen = 0
         for groupKey, groupValue in value.laneGroups.iteritems():
-            if value.totalCars == 0:
-                proportionGroup = 0
-            else:
-                proportionGroup = groupValue.averageCars / value.totalCars
+            proportionGroup = groupValue.averageCars / value.totalCars
             groupValue.time = round(cycleLength*proportionGroup)
             if(groupValue.time < minTime):
                 groupValue.time = minTime
